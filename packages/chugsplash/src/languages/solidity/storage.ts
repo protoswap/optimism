@@ -1,48 +1,12 @@
-/* External Imports */
 import { fromHexString, remove0x } from '@eth-optimism/core-utils'
 import { BigNumber, ethers } from 'ethers'
-import semver from 'semver'
 
-import { getBuildInfo, getContractArtifact } from './artifacts'
-
-// Represents the JSON objects outputted by the Solidity compiler that describe the structure of
-// state within the contract. See
-// https://docs.soliditylang.org/en/v0.8.3/internals/layout_in_storage.html for more information.
-interface SolidityStorageObj {
-  astId: number
-  contract: string
-  label: string
-  offset: number
-  slot: number
-  type: string
-}
-
-// Represents the JSON objects outputted by the Solidity compiler that describe the types used for
-// the various pieces of state in the contract. See
-// https://docs.soliditylang.org/en/v0.8.3/internals/layout_in_storage.html for more information.
-interface SolidityStorageType {
-  encoding: 'inplace' | 'mapping' | 'dynamic_array' | 'bytes'
-  label: string
-  numberOfBytes: number
-  key?: string
-  value?: string
-  base?: string
-  members?: SolidityStorageObj[]
-}
-
-// Container object returned by the Solidity compiler. See
-// https://docs.soliditylang.org/en/v0.8.3/internals/layout_in_storage.html for more information.
-export interface SolidityStorageLayout {
-  storage: SolidityStorageObj[]
-  types: {
-    [name: string]: SolidityStorageType
-  }
-}
-
-interface StorageSlotPair {
-  key: string
-  val: string
-}
+import {
+  SolidityStorageLayout,
+  SolidityStorageObj,
+  SolidityStorageType,
+  StorageSlotPair,
+} from './types'
 
 /**
  * Takes a slot value (in hex), left-pads it with zeros, and displaces it by a given offset.
@@ -59,36 +23,6 @@ const padHexSlotValue = (val: string, offset: number): string => {
       .padEnd(64, '0') // Pad the end (up to 64 bytes) with zero bytes.
       .toLowerCase() // Making this lower case makes assertions more consistent later.
   )
-}
-
-/**
- * Retrieves the storageLayout portion of the compiler artifact for a given contract by name. This
- * function is hardhat specific.
- *
- * @param hre HardhatRuntimeEnvironment, required for the readArtifactSync function.
- * @param name Name of the contract to retrieve the storage layout for.
- * @return Storage layout object from the compiler output.
- */
-export const getStorageLayout = async (
-  name: string
-): Promise<SolidityStorageLayout> => {
-  const { sourceName, contractName } = await getContractArtifact(name)
-  const buildInfo = await getBuildInfo(`${sourceName}:${contractName}`)
-  const output = buildInfo.output.contracts[sourceName][contractName]
-
-  if (!semver.satisfies(buildInfo.solcVersion, '>=0.4.x <0.9.x')) {
-    throw new Error(
-      `Storage layout for Solidity version ${buildInfo.solcVersion} not yet supported. Sorry!`
-    )
-  }
-
-  if (!('storageLayout' in output)) {
-    throw new Error(
-      `Storage layout for ${name} not found. Did you forget to set the storage layout compiler option in your hardhat config? Read more: https://github.com/ethereum-optimism/smock#note-on-using-smoddit`
-    )
-  }
-
-  return (output as any).storageLayout
 }
 
 /**

@@ -19,11 +19,11 @@ import {
   makeActionBundleFromConfig,
   ChugSplashConfig,
   ChugSplashConfigWithInputs,
-} from './config'
-import { ChugSplashActionBundle } from './actions'
+} from '../../config'
+import { ChugSplashActionBundle } from '../../actions'
 import { getContractArtifact } from './artifacts'
-import { getStorageLayout } from './storage'
-import { ChugSplashRegistryABI, ChugSplashManagerABI } from './ifaces'
+import { getStorageLayout } from '../../storage'
+import { ChugSplashRegistryABI, ChugSplashManagerABI } from '../../ifaces'
 
 const TASK_CHUGSPLASH_LOAD = 'chugsplash:load'
 const TASK_CHUGSPLASH_BUNDLE_LOCAL = 'chugsplash:bundle:local'

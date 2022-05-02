@@ -8,40 +8,8 @@ import {
   ChugSplashAction,
   ChugSplashActionBundle,
   getChugSplashActionBundle,
-} from './actions'
-
-type SolidityVariable =
-  | boolean
-  | string
-  | number
-  | Array<SolidityVariable>
-  | {
-      [name: string]: SolidityVariable
-    }
-
-export interface ChugSplashConfig {
-  options: {
-    name: string
-    owner: string
-  }
-  contracts: {
-    [name: string]: {
-      source: string
-      address?: string
-      variables?: {
-        [name: string]: SolidityVariable
-      }
-    }
-  }
-}
-
-export interface ChugSplashConfigWithInputs extends ChugSplashConfig {
-  inputs: Array<{
-    solcVersion: string
-    solcLongVersion: string
-    input: any // TODO: Solidity compiler input
-  }>
-}
+} from '../actions'
+import { ChugSplashConfig } from './types'
 
 /**
  * Validates a ChugSplash config file.
