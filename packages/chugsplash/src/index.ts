@@ -1,5 +1,5 @@
 export * from './actions'
 export * from './plugins'
 export * from './config'
-export * from './ifaces'
+export * from './autogen'
 export * from './languages'

@@ -78,26 +78,29 @@ subtask(TASK_CHUGSPLASH_BUNDLE_REMOTE)
       args: { deployConfig: CanonicalChugSplashConfig },
       hre
     ): Promise<ChugSplashActionBundle> => {
-      // TODO: Must be refactored for Vyper support in the future.
       const artifacts = {}
-      for (const input of args.deployConfig.compiler.inputs) {
+      for (const source of args.deployConfig.sources) {
+        if (source.language !== 'solidity') {
+          throw new Error('languages other than Solidity not yet supported')
+        }
+
         const solcBuild: SolcBuild = await hre.run(
           TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD,
           {
             quiet: true,
-            solcVersion: input.solcVersion,
+            solcVersion: source.version,
           }
         )
 
         let output: any // TODO: Compiler output
         if (solcBuild.isSolcJs) {
           output = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLCJS, {
-            input: input.input,
+            input: source.input,
             solcJsPath: solcBuild.compilerPath,
           })
         } else {
           output = await hre.run(TASK_COMPILE_SOLIDITY_RUN_SOLC, {
-            input: input.input,
+            input: source.input,
             solcPath: solcBuild.compilerPath,
           })
         }
