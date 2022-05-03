@@ -1,7 +1,17 @@
+import * as semver from 'semver'
+
+import { SolidityStorageLayout } from '../../languages/solidity'
+
 // TODO
 export type ContractArtifact = any
 export type BuildInfo = any
 
+/**
+ * Retrieves an artifact by name.
+ *
+ * @param name Name of the artifact.
+ * @returns Artifact.
+ */
 export const getContractArtifact = async (
   name: string
 ): Promise<ContractArtifact> => {
@@ -10,6 +20,12 @@ export const getContractArtifact = async (
   return hre.artifacts.readArtifactSync(name)
 }
 
+/**
+ * Retrieves contract build info by name.
+ *
+ * @param name Name of the contract.
+ * @returns Contract build info.
+ */
 export const getBuildInfo = async (name: string): Promise<BuildInfo> => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const hre = require('hardhat')

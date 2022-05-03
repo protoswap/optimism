@@ -1,3 +1,6 @@
+/**
+ * Allowable types for variables.
+ */
 export type ConfigVariable =
   | boolean
   | string
@@ -7,6 +10,9 @@ export type ConfigVariable =
       [name: string]: ConfigVariable
     }
 
+/**
+ * Full config object that can be used to commit a deployment.
+ */
 export interface ChugSplashConfig {
   options: {
     name: string
@@ -23,6 +29,10 @@ export interface ChugSplashConfig {
   }
 }
 
+/**
+ * Config object with added compilation details. Must add compilation details to the config before
+ * the config can be published or off-chain tooling won't be able to re-generate the deployment.
+ */
 export interface CanonicalChugSplashConfig extends ChugSplashConfig {
   compiler: {
     langauge: 'solidity' // TODO: vyper support eventually

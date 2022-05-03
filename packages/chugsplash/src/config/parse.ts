@@ -3,11 +3,14 @@ import * as Handlebars from 'handlebars'
 import { ethers } from 'ethers'
 
 /* Imports: Internal */
-import { computeStorageSlots, SolidityStorageLayout } from './storage'
+import {
+  computeStorageSlots,
+  SolidityStorageLayout,
+} from '../languages/solidity'
 import {
   ChugSplashAction,
   ChugSplashActionBundle,
-  getChugSplashActionBundle,
+  makeBundleFromActions,
 } from '../actions'
 import { ChugSplashConfig } from './types'
 
@@ -135,6 +138,7 @@ export const makeActionBundleFromConfig = async (
     })
 
     // Compute our storage slots.
+    // TODO: One day we'll need to refactor this to support Vyper.
     const slots = computeStorageSlots(
       artifact.storageLayout,
       contractConfig.variables
@@ -151,5 +155,5 @@ export const makeActionBundleFromConfig = async (
   }
 
   // Generate a bundle from the list of actions.
-  return getChugSplashActionBundle(actions)
+  return makeBundleFromActions(actions)
 }

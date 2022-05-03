@@ -1,4 +1,14 @@
-import { ChugSplashAction, SetStorageAction } from './types'
+import { fromHexString, toHexString } from '@eth-optimism/core-utils'
+import { ethers } from 'ethers'
+import MerkleTree from 'merkletreejs'
+
+import {
+  ChugSplashAction,
+  ChugSplashActionBundle,
+  ChugSplashActionType,
+  RawChugSplashAction,
+  SetStorageAction,
+} from './types'
 
 /**
  * Checks whether a given action is a SetStorage action.
@@ -43,6 +53,12 @@ export const toRawChugSplashAction = (
   }
 }
 
+/**
+ * Converts a raw ChugSplash action into a "nice" action struct.
+ *
+ * @param rawAction Raw ChugSplash action to convert.
+ * @returns Converted "nice" ChugSplash action.
+ */
 export const fromRawChugSplashAction = (
   rawAction: RawChugSplashAction
 ): ChugSplashAction => {
@@ -86,7 +102,7 @@ export const getActionHash = (action: RawChugSplashAction): string => {
  * @param actions Series of SetCode or SetStorage actions to bundle.
  * @return Bundled actions.
  */
-export const getChugSplashActionBundle = (
+export const makeBundleFromActions = (
   actions: ChugSplashAction[]
 ): ChugSplashActionBundle => {
   // First turn the "nice" action structs into raw actions.

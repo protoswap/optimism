@@ -18,12 +18,11 @@ import {
   validateChugSplashConfig,
   makeActionBundleFromConfig,
   ChugSplashConfig,
-  ChugSplashConfigWithInputs,
+  CanonicalChugSplashConfig,
 } from '../../config'
 import { ChugSplashActionBundle } from '../../actions'
-import { getContractArtifact } from './artifacts'
-import { getStorageLayout } from '../../storage'
-import { ChugSplashRegistryABI, ChugSplashManagerABI } from '../../ifaces'
+import { getContractArtifact, getStorageLayout } from './artifacts'
+import { ChugSplashRegistryABI, ChugSplashManagerABI } from '../../autogen'
 
 const TASK_CHUGSPLASH_LOAD = 'chugsplash:load'
 const TASK_CHUGSPLASH_BUNDLE_LOCAL = 'chugsplash:bundle:local'
@@ -76,11 +75,12 @@ subtask(TASK_CHUGSPLASH_BUNDLE_REMOTE)
   .addParam('deployConfig', undefined, undefined, types.any)
   .setAction(
     async (
-      args: { deployConfig: ChugSplashConfigWithInputs },
+      args: { deployConfig: CanonicalChugSplashConfig },
       hre
     ): Promise<ChugSplashActionBundle> => {
+      // TODO: Must be refactored for Vyper support in the future.
       const artifacts = {}
-      for (const input of args.deployConfig.inputs) {
+      for (const input of args.deployConfig.compiler.inputs) {
         const solcBuild: SolcBuild = await hre.run(
           TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD,
           {
@@ -125,10 +125,8 @@ subtask(TASK_CHUGSPLASH_BUNDLE_REMOTE)
 subtask(TASK_CHUGSPLASH_FETCH)
   .addParam('configUri', undefined, undefined, types.string)
   .setAction(
-    async (args: {
-      configUri: string
-    }): Promise<ChugSplashConfigWithInputs> => {
-      let config: ChugSplashConfigWithInputs
+    async (args: { configUri: string }): Promise<CanonicalChugSplashConfig> => {
+      let config: CanonicalChugSplashConfig
       if (args.configUri.startsWith('ipfs://')) {
         config = await (
           await fetch(
@@ -220,10 +218,10 @@ task(TASK_CHUGSPLASH_VERIFY)
       },
       hre
     ): Promise<{
-      config: ChugSplashConfigWithInputs
+      config: CanonicalChugSplashConfig
       bundle: ChugSplashActionBundle
     }> => {
-      const config: ChugSplashConfigWithInputs = await hre.run(
+      const config: CanonicalChugSplashConfig = await hre.run(
         TASK_CHUGSPLASH_FETCH,
         {
           configUri: args.configUri,
@@ -268,7 +266,7 @@ task(TASK_CHUGSPLASH_EXECUTE)
         config,
         bundle,
       }: {
-        config: ChugSplashConfigWithInputs
+        config: CanonicalChugSplashConfig
         bundle: ChugSplashActionBundle
       } = await hre.run(TASK_CHUGSPLASH_VERIFY, {
         configUri: args.configUri,
