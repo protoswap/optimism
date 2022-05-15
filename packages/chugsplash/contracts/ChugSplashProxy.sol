@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { IChugSplashDeployer } from "./IChugSplashDeployer.sol";
-
 /**
  * @title ChugSplashProxy
  * @dev Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added
@@ -57,7 +55,7 @@ contract ChugSplashProxy {
         // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and
         // it turns out that it isn't the right type of contract.
         (bool success, bytes memory returndata) = owner.staticcall(
-            abi.encodeWithSelector(IChugSplashDeployer.isUpgrading.selector)
+            abi.encodeWithSignature("isUpgrading()")
         );
 
         // If the call was unsuccessful then we assume that there's no "isUpgrading" method and we

@@ -1,8 +1,8 @@
-import { expect } from './setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { remove0x } from '@eth-optimism/core-utils'
+
+import { expect } from './setup'
 
 /* Imports: Internal */
 import {

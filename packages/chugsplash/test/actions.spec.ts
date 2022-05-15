@@ -1,10 +1,10 @@
-import { expect } from './setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { Contract } from 'ethers'
 import MerkleTree from 'merkletreejs'
 import { fromHexString } from '@eth-optimism/core-utils'
+
+import { expect } from './setup'
 
 /* Imports: Internal */
 import {

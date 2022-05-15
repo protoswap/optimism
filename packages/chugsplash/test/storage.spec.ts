@@ -1,9 +1,9 @@
-import { expect } from './setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { Contract } from 'ethers'
 import { isObject, toPlainObject } from 'lodash'
+
+import { expect } from './setup'
 
 /* Imports: Internal */
 import {
