@@ -142,6 +142,21 @@ contract OptimismPortal is ResourceMetering {
     }
 
     /**
+     * @notice Determine if an L2 Output is finalized.
+     *
+     * @param _l2BlockNumber The number of the L2 block.
+     */
+
+    function isOutputFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+        // todo: Should this not return true if the previous check pointed block _is_ finalized?
+        if (proposal.outputRoot == bytes32(uint256(0))) {
+            return false;
+        }
+        return block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
+    }
+
+    /**
      * @notice Finalizes a withdrawal transaction.
      *
      * @param _nonce           Nonce for the provided message.
