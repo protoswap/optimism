@@ -16,7 +16,7 @@ import {
   StandardBridgeAdapter,
   ETHBridgeAdapter,
 } from '../src'
-import { DUMMY_MESSAGE } from './helpers'
+import { DUMMY_MESSAGE, DUMMY_EXTENDED_MESSAGE } from './helpers'
 
 describe('CrossChainMessenger', () => {
   let l1Signer: any
@@ -167,6 +167,8 @@ describe('CrossChainMessenger', () => {
                 StateCommitmentChain: '0x' + '14'.repeat(20),
                 CanonicalTransactionChain: '0x' + '15'.repeat(20),
                 BondManager: '0x' + '16'.repeat(20),
+                OptimismPortal: '0x' + '17'.repeat(20),
+                OutputOracle: '0x' + '18'.repeat(20),
               },
               l2: {
                 L2CrossDomainMessenger: '0x' + '22'.repeat(20),
@@ -279,7 +281,8 @@ describe('CrossChainMessenger', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
-                    gasLimit: ethers.BigNumber.from(message.gasLimit),
+                    minGasLimit: ethers.BigNumber.from(message.minGasLimit),
+                    value: ethers.BigNumber.from(message.value),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -331,7 +334,8 @@ describe('CrossChainMessenger', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
-                    gasLimit: ethers.BigNumber.from(message.gasLimit),
+                    minGasLimit: ethers.BigNumber.from(message.minGasLimit),
+                    value: ethers.BigNumber.from(message.value),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -457,15 +461,8 @@ describe('CrossChainMessenger', () => {
     describe('when the input is a CrossChainMessage', () => {
       it('should return the input', async () => {
         const message = {
+          ...DUMMY_EXTENDED_MESSAGE,
           direction: MessageDirection.L1_TO_L2,
-          target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
-          message: '0x' + '33'.repeat(64),
-          messageNonce: 1234,
-          gasLimit: 0,
-          logIndex: 0,
-          blockNumber: 1234,
-          transactionHash: '0x' + '44'.repeat(32),
         }
 
         expect(await messenger.toCrossChainMessage(message)).to.deep.equal(
@@ -779,15 +776,8 @@ describe('CrossChainMessenger', () => {
       describe('when the relay was successful', () => {
         it('should return the receipt of the transaction that relayed the message', async () => {
           const message = {
+            ...DUMMY_EXTENDED_MESSAGE,
             direction: MessageDirection.L1_TO_L2,
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 0,
-            logIndex: 0,
-            blockNumber: 1234,
-            transactionHash: '0x' + '44'.repeat(32),
           }
 
           const tx = await l2Messenger.triggerRelayedMessageEvents([
@@ -810,15 +800,8 @@ describe('CrossChainMessenger', () => {
       describe('when the relay failed', () => {
         it('should return the receipt of the transaction that attempted to relay the message', async () => {
           const message = {
+            ...DUMMY_EXTENDED_MESSAGE,
             direction: MessageDirection.L1_TO_L2,
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 0,
-            logIndex: 0,
-            blockNumber: 1234,
-            transactionHash: '0x' + '44'.repeat(32),
           }
 
           const tx = await l2Messenger.triggerFailedRelayedMessageEvents([
@@ -841,15 +824,8 @@ describe('CrossChainMessenger', () => {
       describe('when the relay failed more than once', () => {
         it('should return the receipt of the last transaction that attempted to relay the message', async () => {
           const message = {
+            ...DUMMY_EXTENDED_MESSAGE,
             direction: MessageDirection.L1_TO_L2,
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 0,
-            logIndex: 0,
-            blockNumber: 1234,
-            transactionHash: '0x' + '44'.repeat(32),
           }
 
           await l2Messenger.triggerFailedRelayedMessageEvents([
@@ -877,15 +853,8 @@ describe('CrossChainMessenger', () => {
     describe('when the message has not been relayed', () => {
       it('should return null', async () => {
         const message = {
+          ...DUMMY_EXTENDED_MESSAGE,
           direction: MessageDirection.L1_TO_L2,
-          target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
-          message: '0x' + '33'.repeat(64),
-          messageNonce: 1234,
-          gasLimit: 0,
-          logIndex: 0,
-          blockNumber: 1234,
-          transactionHash: '0x' + '44'.repeat(32),
         }
 
         await l2Messenger.doNothing()
@@ -922,15 +891,8 @@ describe('CrossChainMessenger', () => {
     describe('when the message receipt already exists', () => {
       it('should immediately return the receipt', async () => {
         const message = {
+          ...DUMMY_EXTENDED_MESSAGE,
           direction: MessageDirection.L1_TO_L2,
-          target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
-          message: '0x' + '33'.repeat(64),
-          messageNonce: 1234,
-          gasLimit: 0,
-          logIndex: 0,
-          blockNumber: 1234,
-          transactionHash: '0x' + '44'.repeat(32),
         }
 
         const tx = await l2Messenger.triggerRelayedMessageEvents([
@@ -954,15 +916,8 @@ describe('CrossChainMessenger', () => {
       describe('when no extra options are provided', () => {
         it('should wait for the receipt to be published', async () => {
           const message = {
+            ...DUMMY_EXTENDED_MESSAGE,
             direction: MessageDirection.L1_TO_L2,
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 0,
-            logIndex: 0,
-            blockNumber: 1234,
-            transactionHash: '0x' + '44'.repeat(32),
           }
 
           setTimeout(async () => {
@@ -987,15 +942,8 @@ describe('CrossChainMessenger', () => {
       describe('when a timeout is provided', () => {
         it('should throw an error if the timeout is reached', async () => {
           const message = {
+            ...DUMMY_EXTENDED_MESSAGE,
             direction: MessageDirection.L1_TO_L2,
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 0,
-            logIndex: 0,
-            blockNumber: 1234,
-            transactionHash: '0x' + '44'.repeat(32),
           }
 
           await expect(
@@ -1021,14 +969,8 @@ describe('CrossChainMessenger', () => {
     describe('when the message is an L1 to L2 message', () => {
       it('should return an accurate gas estimate plus a ~20% buffer', async () => {
         const message = {
+          ...DUMMY_EXTENDED_MESSAGE,
           direction: MessageDirection.L1_TO_L2,
-          target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
-          message: '0x' + '33'.repeat(64),
-          messageNonce: 1234,
-          logIndex: 0,
-          blockNumber: 1234,
-          transactionHash: '0x' + '44'.repeat(32),
         }
 
         const estimate = await ethers.provider.estimateGas({
@@ -1050,14 +992,8 @@ describe('CrossChainMessenger', () => {
 
       it('should return an accurate gas estimate when a custom buffer is provided', async () => {
         const message = {
+          ...DUMMY_EXTENDED_MESSAGE,
           direction: MessageDirection.L1_TO_L2,
-          target: '0x' + '11'.repeat(20),
-          sender: '0x' + '22'.repeat(20),
-          message: '0x' + '33'.repeat(64),
-          messageNonce: 1234,
-          logIndex: 0,
-          blockNumber: 1234,
-          transactionHash: '0x' + '44'.repeat(32),
         }
 
         const estimate = await ethers.provider.estimateGas({

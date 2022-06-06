@@ -29,6 +29,8 @@ export interface OEL1Contracts {
   StateCommitmentChain: Contract
   CanonicalTransactionChain: Contract
   BondManager: Contract
+  OptimismPortal: Contract
+  OutputOracle: Contract
 }
 
 /**
@@ -163,7 +165,9 @@ export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
-  messageNonce: number
+  messageNonce: BigNumber
+  value: BigNumber
+  minGasLimit: BigNumber
 }
 
 /**
@@ -172,7 +176,6 @@ export interface CoreCrossChainMessage {
  */
 export interface CrossChainMessage extends CoreCrossChainMessage {
   direction: MessageDirection
-  gasLimit: number
   logIndex: number
   blockNumber: number
   transactionHash: string
@@ -223,6 +226,15 @@ export interface StateRootBatchHeader {
 }
 
 /**
+ * Bedrock output oracle data.
+ */
+export interface BedrockOutputData {
+  outputRoot: string
+  l1Timestamp: number
+  l2Timestamp: number
+}
+
+/**
  * Information about a state root, including header, block number, and root iself.
  */
 export interface StateRoot {
@@ -252,6 +264,20 @@ export interface CrossChainMessageProof {
   }
   stateTrieWitness: string
   storageTrieWitness: string
+}
+
+/**
+ * Bedrock proof data required to finalize an L2 to L1 message.
+ */
+export interface BedrockCrossChainMessageProof {
+  l2Timestamp: number
+  outputRootProof: {
+    version: string
+    stateRoot: string
+    withdrawerStorageRoot: string
+    latestBlockhash: string
+  }
+  withdrawalProof: string
 }
 
 /**
