@@ -9,7 +9,8 @@
     "dist/**/*.js",
     "dist/**/*.d.ts",
     "dist/types/*.ts",
-    "artifacts/src/**/*.json",
+    "artifacts/contracts/**/*.json",
+    "contracts/**/*.sol",
     "deployments/**/*.json"
   ],
   "scripts": {

@@ -103,6 +103,13 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
            100
         );
 
+        // SentMessageExtraData event
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtraData(
+           alice,
+           0
+        );
+
         vm.prank(alice);
         L1Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
