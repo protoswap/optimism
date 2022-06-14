@@ -3,6 +3,8 @@ import { ethers, Contract } from 'ethers'
 import * as CrossDomainMessengerArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/universal/CrossDomainMessenger.sol/CrossDomainMessenger.json'
 import * as OptimismPortalArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json'
 import * as OutputOracleArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json'
+import * as L1CrossDomainMessengerArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
+import * as L1StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L1StandardBridge.sol/L1StandardBridge.json'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -68,6 +70,20 @@ export const OptimismPortalIface = new ethers.utils.Interface(
  */
 export const OutputOracleIface = new ethers.utils.Interface(
   OutputOracleArtifact.abi
+)
+
+/**
+ * Interface for the L1CrossDomainMessenger contract.
+ */
+export const L1CrossDomainMessengerIface = new ethers.utils.Interface(
+  L1CrossDomainMessengerArtifact.abi
+)
+
+/**
+ * Interface for the L1CrossDomainMessenger contract.
+ */
+export const L1StandardBridgeIface = new ethers.utils.Interface(
+  L1StandardBridgeArtifact.abi
 )
 
 /**
@@ -142,6 +158,22 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
+  [Chain.BEDROCK_LOCAL_DEVNET]: {
+    l1: {
+      AddressManager: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+      L1CrossDomainMessenger:
+        '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as const,
+      L1StandardBridge: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+      StateCommitmentChain:
+        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+      CanonicalTransactionChain:
+        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
+      BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      OptimismPortal: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as const,
+      OutputOracle: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
 }
 
 /**
@@ -155,12 +187,12 @@ export const BRIDGE_ADAPTER_DATA: {
   [Chain.MAINNET]: {
     Standard: {
       Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[1].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.MAINNET].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     ETH: {
       Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[1].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.MAINNET].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     BitBTC: {
@@ -177,12 +209,12 @@ export const BRIDGE_ADAPTER_DATA: {
   [Chain.KOVAN]: {
     Standard: {
       Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[42].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.KOVAN].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     ETH: {
       Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[42].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.KOVAN].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     BitBTC: {
@@ -204,24 +236,38 @@ export const BRIDGE_ADAPTER_DATA: {
   [Chain.GOERLI]: {
     Standard: {
       Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[5].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.GOERLI].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     ETH: {
       Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[5].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.GOERLI].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
   },
   [Chain.HARDHAT_LOCAL]: {
     Standard: {
       Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[31337].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.HARDHAT_LOCAL].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
     ETH: {
       Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[31337].l1.L1StandardBridge,
+      l1Bridge: CONTRACT_ADDRESSES[Chain.HARDHAT_LOCAL].l1.L1StandardBridge,
+      l2Bridge: predeploys.L2StandardBridge,
+    },
+  },
+  [Chain.BEDROCK_LOCAL_DEVNET]: {
+    Standard: {
+      Adapter: StandardBridgeAdapter,
+      l1Bridge:
+        CONTRACT_ADDRESSES[Chain.BEDROCK_LOCAL_DEVNET].l1.L1StandardBridge,
+      l2Bridge: predeploys.L2StandardBridge,
+    },
+    ETH: {
+      Adapter: ETHBridgeAdapter,
+      l1Bridge:
+        CONTRACT_ADDRESSES[Chain.BEDROCK_LOCAL_DEVNET].l1.L1StandardBridge,
       l2Bridge: predeploys.L2StandardBridge,
     },
   },
@@ -276,6 +322,10 @@ export const getOEContract = (
     iface = OptimismPortalIface
   } else if (contractName === 'OutputOracle') {
     iface = OutputOracleIface
+  } else if (contractName === 'L1CrossDomainMessenger') {
+    iface = L1CrossDomainMessengerIface
+  } else if (contractName === 'L1StandardBridge') {
+    iface = L1StandardBridgeIface
   } else {
     iface = getContractInterface(NAME_REMAPPING[contractName] || contractName)
   }

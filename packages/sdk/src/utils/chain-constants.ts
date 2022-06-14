@@ -6,6 +6,7 @@ export const DEPOSIT_CONFIRMATION_BLOCKS = {
   [Chain.KOVAN]: 12 as const,
   // 2 just for testing purposes
   [Chain.HARDHAT_LOCAL]: 2 as const,
+  [Chain.BEDROCK_LOCAL_DEVNET]: 2 as const,
 }
 
 export const CHAIN_BLOCK_TIMES = {
@@ -13,4 +14,5 @@ export const CHAIN_BLOCK_TIMES = {
   [Chain.GOERLI]: 15 as const,
   [Chain.KOVAN]: 4 as const,
   [Chain.HARDHAT_LOCAL]: 1 as const,
+  [Chain.BEDROCK_LOCAL_DEVNET]: 2 as const,
 }

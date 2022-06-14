@@ -17,6 +17,7 @@ export enum Chain {
   GOERLI = 5,
   KOVAN = 42,
   HARDHAT_LOCAL = 31337,
+  BEDROCK_LOCAL_DEVNET = 900,
 }
 
 /**
