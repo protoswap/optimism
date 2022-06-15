@@ -50,9 +50,9 @@ type ChannelInReaderStage interface {
 type BatchQueueStage interface {
 	LastL1Origin() eth.L1BlockRef
 	AddOrigin(origin eth.L1BlockRef) error
-	AddBatch(batch *BatchData) error
+	AddBatch(batch *BatchData, origin eth.L1BlockRef) error
 	EndOrigin()
-	DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error)
+	DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*eth.PayloadAttributes, error)
 	Reset(l1Origin eth.L1BlockRef)
 }
 
@@ -253,11 +253,11 @@ func (dp *DerivationPipeline) readBatch() error {
 		return nil
 	}
 	dp.log.Debug("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
-	return dp.batchQueue.AddBatch(&batch)
+	return dp.batchQueue.AddBatch(&batch, dp.chInReader.CurrentL1Origin())
 }
 
 func (dp *DerivationPipeline) readAttributes(ctx context.Context) error {
-	attrs, err := dp.batchQueue.DeriveL2Inputs(ctx, dp.engineQueue.LastL2Time())
+	attrs, err := dp.batchQueue.DeriveL2Inputs(ctx, dp.engineQueue.SafeL2Head())
 	if err != nil {
 		return err
 	}

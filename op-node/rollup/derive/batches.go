@@ -3,6 +3,8 @@ package derive
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -27,6 +29,23 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, mi
 			continue
 		}
 		uniqueTime[batch.Timestamp] = struct{}{}
+		out = append(out, batch)
+	}
+	return
+}
+
+func FilterBatchesV2(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchWithOrigin) (out []*BatchWithOrigin) {
+	uniqueTime := make(map[uint64]struct{})
+	for _, batch := range batches {
+		if err := ValidBatch(batch.Batch, config, epoch, minL2Time, maxL2Time); err != nil {
+			continue
+		}
+		// Check if we have already seen a batch for this L2 block
+		if _, ok := uniqueTime[batch.Batch.Timestamp]; ok {
+			// block already exists, batch is duplicate (first batch persists, others are ignored)
+			continue
+		}
+		uniqueTime[batch.Batch.Timestamp] = struct{}{}
 		out = append(out, batch)
 	}
 	return
@@ -87,6 +106,44 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 					Epoch:     rollup.Epoch(epoch),
 					Timestamp: t,
 				},
+			})
+		}
+	}
+	return out
+}
+
+// FillMissingBatches turns a collection of batches to the input batches for a series of blocks
+func FillMissingBatchesV2(batches []*BatchWithOrigin, epoch, blockTime, minL2Time, nextL1Time uint64) []*BatchWithOrigin {
+	m := make(map[uint64]*BatchWithOrigin)
+	// The number of L2 blocks per sequencing window is variable, we do not immediately fill to maxL2Time:
+	// - ensure at least 1 block
+	// - fill up to the next L1 block timestamp, if higher, to keep up with L1 time
+	// - fill up to the last valid batch, to keep up with L2 time
+	newHeadL2Timestamp := minL2Time
+	if nextL1Time > newHeadL2Timestamp+blockTime {
+		newHeadL2Timestamp = nextL1Time - blockTime
+	}
+	for _, b := range batches {
+		m[b.Batch.Timestamp] = b
+		if b.Batch.Timestamp > newHeadL2Timestamp {
+			newHeadL2Timestamp = b.Batch.Timestamp
+		}
+	}
+	var out []*BatchWithOrigin
+	for t := minL2Time; t <= newHeadL2Timestamp; t += blockTime {
+		b, ok := m[t]
+		if ok {
+			out = append(out, b)
+		} else {
+			out = append(out, &BatchWithOrigin{
+				Batch: &BatchData{
+					BatchV1{
+						Epoch:     rollup.Epoch(epoch),
+						Timestamp: t,
+					},
+				},
+
+				Origin: eth.L1BlockRef{}, // TODO
 			})
 		}
 	}
