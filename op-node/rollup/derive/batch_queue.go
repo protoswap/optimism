@@ -273,50 +273,79 @@ func (bq *BatchQueue) followingBatches(l2SafeHead *eth.L2BlockRef) []*BatchWithO
 }
 
 // derive any L2 chain inputs, if we have any new batches
-func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*eth.PayloadAttributes, error) {
+func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*BatchWithOrigin, error) {
 	if len(bq.window) == 0 {
 		return nil, io.EOF
 	}
-	oldEpoch := bq.epoch
-	oldWindow := make([]eth.L1BlockRef, len(bq.window))
-	copy(oldWindow, bq.window)
+	return bq.allFollowingBatches(&l2SafeHead), nil
+}
 
-	batches := bq.allFollowingBatches(&l2SafeHead)
-	// Note have batches, but `bq.epoch` and `bq.window` have been modified.
+func (bq *BatchQueue) Reset(l1Origin eth.L1BlockRef) {
+	bq.window = bq.window[:0]
+	// TODO: Is this the correct place to set the epoch to?
+	bq.epoch = l1Origin.Number
+	bq.batchesByNumber = make(map[uint64][]*BatchWithOrigin)
+}
 
-	epoch := oldEpoch
+type PayloadQueue struct {
+	log    log.Logger
+	config *rollup.Config
+	dl     L1ReceiptsFetcher
+
+	l1Origins []eth.L1BlockRef
+	batches   []*BatchWithOrigin
+}
+
+func (pq *PayloadQueue) AddBatches(batches []*BatchWithOrigin) {
+	pq.batches = append(pq.batches, batches...)
+}
+
+func (pq *PayloadQueue) AddL1Origin(origin eth.L1BlockRef) {
+	pq.l1Origins = append(pq.l1Origins, origin)
+}
+
+func (pq *PayloadQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*eth.PayloadAttributes, error) {
+	if len(pq.l1Origins) == 0 {
+		return nil, io.EOF
+	}
+
 	seqNumber := l2SafeHead.SequenceNumber + 1
 	originIdx := 0
-	l1Origin := oldWindow[0]
+	l1Origin := pq.l1Origins[0]
 
 	var attributes []*eth.PayloadAttributes
 
-	for _, batch := range batches {
+	for _, batch := range pq.batches {
 		var l1Info eth.L1Info
 		var receipts []*types.Receipt
 		var deposits []hexutil.Bytes
 
-		if epoch != uint64(batch.Batch.Epoch) {
+		// Don't go past the end of the window
+		if originIdx == len(pq.l1Origins)-1 {
+			break
+		}
+
+		// See if we need to advance an epoch
+		if pq.l1Origins[originIdx].Number != uint64(batch.Batch.Epoch) {
 			seqNumber = 0
 			originIdx += 1
-			l1Origin = oldWindow[originIdx]
+			l1Origin = pq.l1Origins[originIdx]
 			fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			defer cancel()
 			var err error
-			l1Info, _, receipts, err = bq.dl.Fetch(fetchCtx, l1Origin.Hash)
+			l1Info, _, receipts, err = pq.dl.Fetch(fetchCtx, l1Origin.Hash)
 			if err != nil {
-				bq.log.Error("failed to fetch L1 block info", "l1Origin", l1Origin, "err", err)
-				panic("will lose data without reset")
-				// TODO: return actual error here
+				pq.log.Error("failed to fetch L1 block info", "l1Origin", l1Origin, "err", err)
+				pq.l1Origins = pq.l1Origins[originIdx:]
 				return nil, nil
 			}
 			var errs []error
-			deposits, errs = DeriveDeposits(receipts, bq.config.DepositContractAddress)
+			deposits, errs = DeriveDeposits(receipts, pq.config.DepositContractAddress)
 			for _, err := range errs {
-				bq.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
+				pq.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
 			}
 			if len(errs) != 0 {
-				panic("will lose data without reset")
+				pq.l1Origins = pq.l1Origins[originIdx:]
 				return nil, fmt.Errorf("failed to derive some deposits: %v", errs)
 			}
 		}
@@ -324,7 +353,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2Block
 		var txns []eth.Data
 		l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
 		if err != nil {
-			panic("will lose data without reset")
+			pq.l1Origins = pq.l1Origins[originIdx:]
 			return nil, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}
 		txns = append(txns, l1InfoTx)
@@ -335,7 +364,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2Block
 		attrs := &eth.PayloadAttributes{
 			Timestamp:             hexutil.Uint64(batch.Batch.Timestamp),
 			PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
-			SuggestedFeeRecipient: bq.config.FeeRecipientAddress,
+			SuggestedFeeRecipient: pq.config.FeeRecipientAddress,
 			Transactions:          txns,
 			// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
 			// (that would make the block derivation non-deterministic)
@@ -345,12 +374,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2Block
 
 		seqNumber += 1
 	}
+	pq.l1Origins = pq.l1Origins[originIdx:]
 	return attributes, nil
-}
 
-func (bq *BatchQueue) Reset(l1Origin eth.L1BlockRef) {
-	bq.window = bq.window[:0]
-	// TODO: Is this the correct place to set the epoch to?
-	bq.epoch = l1Origin.Number
-	bq.batchesByNumber = make(map[uint64][]*BatchWithOrigin)
 }
