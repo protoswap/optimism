@@ -99,7 +99,7 @@ contract L1StandardBridge is StandardBridge {
      *
      * @return Address of the corresponding L2 bridge contract.
      */
-    function l2TokenBridge() external returns (address) {
+    function l2TokenBridge() external view returns (address) {
         return address(otherBridge);
     }
 

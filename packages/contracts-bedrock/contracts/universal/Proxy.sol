@@ -149,11 +149,11 @@ contract Proxy {
      * @return implementation address.
      */
     function _getImplementation() internal view returns (address) {
-        address implementation;
+        address _implementation;
         assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
+            _implementation := sload(IMPLEMENTATION_KEY)
         }
-        return implementation;
+        return _implementation;
     }
 
     /**
@@ -186,16 +186,16 @@ contract Proxy {
      * @notice Performs the proxy call via a delegatecall.
      */
     function _doProxyCall() internal {
-        address implementation = _getImplementation();
+        address _implementation = _getImplementation();
 
-        require(implementation != address(0), "Proxy: implementation not initialized");
+        require(_implementation != address(0), "Proxy: implementation not initialized");
 
         assembly {
             // Copy calldata into memory at 0x0....calldatasize.
             calldatacopy(0x0, 0x0, calldatasize())
 
             // Perform the delegatecall, make sure to pass all available gas.
-            let success := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)
+            let success := delegatecall(gas(), _implementation, 0x0, calldatasize(), 0x0, 0x0)
 
             // Copy returndata into memory at 0x0....returndatasize. Note that this *will*
             // overwrite the calldata that we just copied into memory but that doesn't really

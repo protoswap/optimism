@@ -147,13 +147,13 @@ contract ProxyAdmin is Owned {
      * @return The address of the implementation.
      */
     function getProxyImplementation(Proxy proxy) external view returns (address) {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType _proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.ERC1967) {
+        if (_proxyType == ProxyType.ERC1967) {
             return IStatic_ERC1967Proxy(address(proxy)).implementation();
-        } else if (proxyType == ProxyType.Chugsplash) {
+        } else if (_proxyType == ProxyType.Chugsplash) {
             return IStatic_L1ChugSplashProxy(address(proxy)).getImplementation();
-        } else if (proxyType == ProxyType.ResolvedDelegate) {
+        } else if (_proxyType == ProxyType.ResolvedDelegate) {
             return addressManager.getAddress(implementationName[address(proxy)]);
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -168,13 +168,13 @@ contract ProxyAdmin is Owned {
      * @return The address of the admin.
      */
     function getProxyAdmin(Proxy proxy) external view returns (address) {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType _proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.ERC1967) {
+        if (_proxyType == ProxyType.ERC1967) {
             return IStatic_ERC1967Proxy(address(proxy)).admin();
-        } else if (proxyType == ProxyType.Chugsplash) {
+        } else if (_proxyType == ProxyType.Chugsplash) {
             return IStatic_L1ChugSplashProxy(address(proxy)).getOwner();
-        } else if (proxyType == ProxyType.ResolvedDelegate) {
+        } else if (_proxyType == ProxyType.ResolvedDelegate) {
             return addressManager.owner();
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -189,13 +189,13 @@ contract ProxyAdmin is Owned {
      * @param newAdmin The address of the admin to update to.
      */
     function changeProxyAdmin(Proxy proxy, address newAdmin) external onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType _proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.ERC1967) {
+        if (_proxyType == ProxyType.ERC1967) {
             proxy.changeAdmin(newAdmin);
-        } else if (proxyType == ProxyType.Chugsplash) {
+        } else if (_proxyType == ProxyType.Chugsplash) {
             L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
-        } else if (proxyType == ProxyType.ResolvedDelegate) {
+        } else if (_proxyType == ProxyType.ResolvedDelegate) {
             addressManager.transferOwnership(newAdmin);
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -209,16 +209,16 @@ contract ProxyAdmin is Owned {
      * @param implementation The address of the implementation.
      */
     function upgrade(Proxy proxy, address implementation) public onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType _proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.ERC1967) {
+        if (_proxyType == ProxyType.ERC1967) {
             proxy.upgradeTo(implementation);
-        } else if (proxyType == ProxyType.Chugsplash) {
+        } else if (_proxyType == ProxyType.Chugsplash) {
             L1ChugSplashProxy(payable(proxy)).setStorage(
                 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
                 bytes32(uint256(uint160(implementation)))
             );
-        } else if (proxyType == ProxyType.ResolvedDelegate) {
+        } else if (_proxyType == ProxyType.ResolvedDelegate) {
             string memory name = implementationName[address(proxy)];
             addressManager.setAddress(name, implementation);
         } else {
@@ -239,9 +239,9 @@ contract ProxyAdmin is Owned {
         address implementation,
         bytes memory data
     ) external payable onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType _proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.ERC1967) {
+        if (_proxyType == ProxyType.ERC1967) {
             proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
         } else {
             // reverts if proxy type is unknown
