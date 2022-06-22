@@ -121,155 +121,132 @@ func validExtension(cfg *rollup.Config, batch *BatchWithOrigin, prevNumber, prev
 	// TODO (VERY IMPORTANT): Filter this batch out if the origin of the batch is too far past the epoch
 	// TODO (ALSO VERY IMPT): Get this equality check correct
 	// TODO: Also do this check when ingesting batches.
-	if batch.Origin.Number > uint64(batch.Batch.Epoch)+cfg.SeqWindowSize {
+	if batch.Origin.Number > batch.Origin.Number+cfg.SeqWindowSize {
 		return false
 	}
 	return true
 }
 
-// allFollowingBatches pulls as many batches as possible from the window & saved batches
-// All batches are validExtensions of the prior batch & the first batch is a validExtension
-// of the l2SafeHead. All batchs pass the `ValidBatch` check (or are created empty batches).
-//
-// This function works by running a loop of the following:
-// 	1. Eagerly pull batches with `followingBatches`
-//	2. Fill out empty batches if it must.
-//	3. Repeat until no more batches can be created.
+// allFollowingBatches pulls a single batch eagerly or a collection of batches if it is the end of
+// the sequencing window.
 func (bq *BatchQueue) allFollowingBatches(l2SafeHead *eth.L2BlockRef) []*BatchWithOrigin {
-	var ret []*BatchWithOrigin
-	lastL2Timestamp := l2SafeHead.Time
 
-	for {
-		// 1. Get following batches with an eager rule.
-		following := bq.followingBatches(l2SafeHead)
-		foundFollowing := len(following) != 0
-		ret = append(ret, following...)
+	// Decide if need to fill out empty batches & process an epoch at once
+	// If not, just return a single batch
+	if bq.LastL1Origin().Number >= bq.epoch+bq.config.SeqWindowSize {
+		// 2a. Gather all batches. First sort by number and then by first seen.
+		var bns []uint64
+		for n := range bq.batchesByNumber {
+			bns = append(bns, n)
+		}
+		sort.Slice(bns, func(i, j int) bool { return bns[i] < bns[j] })
 
-		// 2. Decide if need to fill out empty batches
-		fillEmpty := bq.LastL1Origin().Number > bq.epoch+bq.config.SeqWindowSize
-		if fillEmpty {
-			// 2a. Gather all batches. First sort by number and then by first seen.
-			var bns []uint64
-			for n := range bq.batchesByNumber {
-				bns = append(bns, n)
-			}
-			sort.Slice(bns, func(i, j int) bool { return bns[i] < bns[j] })
-
-			var possibleBatches []*BatchWithOrigin
-			for _, n := range bns {
-				for _, batch := range bq.batchesByNumber[n] {
-					if batch.Batch.Epoch == rollup.Epoch(bq.epoch) {
-						possibleBatches = append(possibleBatches, batch)
-					}
+		var batches []*BatchWithOrigin
+		for _, n := range bns {
+			for _, batch := range bq.batchesByNumber[n] {
+				// Filter out batches that were submitted too late.
+				// TODO: Another place to check the equality symbol.
+				if batch.Origin.Number-bq.LastL1Origin().Number >= bq.config.SeqWindowSize {
+					continue
+				}
+				// Pre filter batches in the correct epoch
+				if batch.Batch.Epoch == rollup.Epoch(bq.epoch) {
+					batches = append(batches, batch)
 				}
 			}
-
-			// 2b. Determine the valid time window
-			l1OriginTime := bq.window[0].Time
-			nextL1BlockTime := bq.window[1].Time
-			if len(ret) > 0 {
-				lastL2Timestamp = ret[len(ret)-1].Batch.Timestamp
-			}
-			minL2Time := lastL2Timestamp + bq.config.BlockTime
-			maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
-			if minL2Time+bq.config.BlockTime > maxL2Time {
-				maxL2Time = minL2Time + bq.config.BlockTime
-			}
-			// Filter + Fill batches
-			possibleBatches = FilterBatchesV2(bq.config, rollup.Epoch(bq.epoch), minL2Time, maxL2Time, possibleBatches)
-			possibleBatches = FillMissingBatchesV2(possibleBatches, bq.epoch, bq.config.BlockTime, minL2Time, nextL1BlockTime)
-
-			// Advance an epoch after filling all batches.
-			ret = append(ret, possibleBatches...)
-			bq.epoch += 1
-			bq.window = bq.window[1:]
-
 		}
 
-		// 3. If not more batches could be found, exit.
-		if !foundFollowing && !fillEmpty {
-			return ret
+		// 2b. Determine the valid time window
+		l1OriginTime := bq.window[0].Time
+		nextL1BlockTime := bq.window[1].Time
+		minL2Time := l2SafeHead.Time + bq.config.BlockTime
+		maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
+		if minL2Time+bq.config.BlockTime > maxL2Time {
+			maxL2Time = minL2Time + bq.config.BlockTime
 		}
+		// Filter + Fill batches
+		batches = FilterBatchesV2(bq.config, rollup.Epoch(bq.epoch), minL2Time, maxL2Time, batches)
+		batches = FillMissingBatchesV2(batches, bq.epoch, bq.config.BlockTime, minL2Time, nextL1BlockTime)
+
+		// Advance an epoch after filling all batches.
+		bq.epoch += 1
+		bq.window = bq.window[1:]
+
+		return batches
+
+	} else {
+		var ret []*BatchWithOrigin
+		next := bq.followingBatches(l2SafeHead)
+		if next != nil {
+			ret = append(ret, next)
+		}
+		return ret
 	}
+
 }
 
 // followingBatches returns a list of batches that each are valid extensions of each other
 // where the first batch is a valid extension of the l2SafeHead.
 // It may return an empty list.
-func (bq *BatchQueue) followingBatches(l2SafeHead *eth.L2BlockRef) []*BatchWithOrigin {
-	var ret []*BatchWithOrigin
+func (bq *BatchQueue) followingBatches(l2SafeHead *eth.L2BlockRef) *BatchWithOrigin {
 
-	prevNumber := l2SafeHead.Number
-	prevTime := l2SafeHead.Number
-	prevEpoch := l2SafeHead.L1Origin.Number
+	// We require at least 1 L1 blocks to look at.
+	if len(bq.window) == 0 {
+		return nil
+	}
+	batches, ok := bq.batchesByNumber[l2SafeHead.Number+1]
+	// No more batches found. Rely on another function to fill missing batches for us.
+	if !ok {
+		return nil
+	}
 
-	for {
-		// We require at least 1 L1 blocks to look at.
-		if len(bq.window) == 0 {
+	// Find the first batch saved for this number.
+	// Note that we expect the number of batches for the same block number to be small (frequently just 1 ).
+	for _, batch := range batches {
+		l1OriginTime := bq.window[0].Time
+
+		// If this batch advances the epoch, check it's validity against the next L1 Origin
+		if batch.Batch.Epoch != rollup.Epoch(l2SafeHead.L1Origin.Number) {
+			// With only 1 l1Block we cannot look at the next L1 Origin.
+			// Note: This means that we are unable to determine validity of a batch
+			// without more information. In this case we should bail out until we have
+			// more information otherwise the eager algorithm may diverge from a non-eager
+			// algorithm.
+			if len(bq.window) < 2 {
+				return nil
+			}
+			l1OriginTime = bq.window[1].Time
+		}
+
+		// Timestamp bounds
+		minL2Time := l2SafeHead.Time + bq.config.BlockTime
+		maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
+		if minL2Time+bq.config.BlockTime > maxL2Time {
+			maxL2Time = minL2Time + bq.config.BlockTime
+		}
+
+		// Note: Don't check epoch here, check it in `validExtension`
+		// Mainly check tx validity + timestamp bounds
+		if err := ValidBatch(batch.Batch, bq.config, batch.Batch.Epoch, minL2Time, maxL2Time); err != nil {
 			break
 		}
-		batches, ok := bq.batchesByNumber[prevNumber+1]
-		// No more batches found. Rely on another function to fill missing batches for us.
-		if !ok {
-			break // break main loop
-		}
 
-		found := false
-		for _, batch := range batches {
-			l1OriginTime := bq.window[0].Time
-
-			// If this batch advances the epoch, check it's validity against the next L1 Origin
-			if batch.Batch.Epoch != rollup.Epoch(prevEpoch) {
-				// With only 1 l1Block we cannot look at the next L1 Origin.
-				// Note: This means that we are unable to determine validity of a batch
-				// without more information. In this case we should bail out until we have
-				// more information otherwise the eager algorithm may diverge from a non-eager
-				// algorithm.
-				if len(bq.window) < 2 {
-					return ret
-				}
-				l1OriginTime = bq.window[1].Time
+		// We have a valid batch, no make sure that it builds off the previous L2 block
+		if validExtension(bq.config, batch, l2SafeHead.Number, l2SafeHead.Number, l2SafeHead.L1Origin.Number) {
+			// Advance the epoch if needed
+			if l2SafeHead.L1Origin.Number != uint64(batch.Batch.Epoch) {
+				bq.window = bq.window[1:]
+				bq.epoch = uint64(batch.Batch.Epoch)
 			}
+			// Don't leak data in the map
+			delete(bq.batchesByNumber, batch.Batch.BlockNumber)
 
-			// Timestamp bounds
-			minL2Time := prevTime + bq.config.BlockTime
-			maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
-			if minL2Time+bq.config.BlockTime > maxL2Time {
-				maxL2Time = minL2Time + bq.config.BlockTime
-			}
-
-			// Note: Don't check epoch here, check it in `validExtensiohn`
-			// Mainly check tx validity + timestamp bounds
-			if err := ValidBatch(batch.Batch, bq.config, batch.Batch.Epoch, minL2Time, maxL2Time); err != nil {
-				break
-			}
-
-			if validExtension(bq.config, batch, prevNumber, prevTime, prevEpoch) {
-				// Advance the epoch
-				if prevEpoch != uint64(batch.Batch.Epoch) {
-					bq.window = bq.window[1:]
-					bq.epoch = uint64(batch.Batch.Epoch)
-				}
-				// Don't leak data in the map
-				delete(bq.batchesByNumber, batch.Batch.BlockNumber)
-
-				prevNumber = batch.Batch.BlockNumber
-				prevTime = batch.Batch.Timestamp
-				prevEpoch = uint64(batch.Batch.Epoch)
-				ret = append(ret, batch)
-
-				found = true
-				break // break this inner loop to continue the main loop
-			}
-		}
-		// If there was no valid batch, make sure we properly break the main loop.
-		if !found {
-			break
+			// We have found the fist valid batch.
+			return batch
 		}
 	}
 
-	// At this point ret contains the set of all following batches that are all validExtensions of the l2Head or each other
-	return ret
+	return nil
 }
 
 // derive any L2 chain inputs, if we have any new batches
@@ -304,77 +281,74 @@ func (pq *PayloadQueue) AddL1Origin(origin eth.L1BlockRef) {
 	pq.l1Origins = append(pq.l1Origins, origin)
 }
 
-func (pq *PayloadQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*eth.PayloadAttributes, error) {
+func (pq *PayloadQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2BlockRef) (*eth.PayloadAttributes, error) {
 	if len(pq.l1Origins) == 0 {
 		return nil, io.EOF
 	}
+	if len(pq.batches) == 0 {
+		return nil, io.EOF
+	}
+	batch := pq.batches[0]
+	// TODO: Don't slice until later?
+	pq.batches = pq.batches[1:]
 
 	seqNumber := l2SafeHead.SequenceNumber + 1
-	originIdx := 0
 	l1Origin := pq.l1Origins[0]
 
-	var attributes []*eth.PayloadAttributes
-
-	for _, batch := range pq.batches {
-		var l1Info eth.L1Info
-		var receipts []*types.Receipt
-		var deposits []hexutil.Bytes
-
-		// Don't go past the end of the window
-		if originIdx == len(pq.l1Origins)-1 {
-			break
+	// Check if we need to advance an epoch
+	if l1Origin.Number != uint64(batch.Batch.Epoch) {
+		seqNumber = 0
+		// Not enough saved origins to advance an epoch here.
+		if len(pq.l1Origins) < 2 {
+			return nil, io.EOF
 		}
-
-		// See if we need to advance an epoch
-		if pq.l1Origins[originIdx].Number != uint64(batch.Batch.Epoch) {
-			seqNumber = 0
-			originIdx += 1
-			l1Origin = pq.l1Origins[originIdx]
-			fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
-			defer cancel()
-			var err error
-			l1Info, _, receipts, err = pq.dl.Fetch(fetchCtx, l1Origin.Hash)
-			if err != nil {
-				pq.log.Error("failed to fetch L1 block info", "l1Origin", l1Origin, "err", err)
-				pq.l1Origins = pq.l1Origins[originIdx:]
-				return nil, nil
-			}
-			var errs []error
-			deposits, errs = DeriveDeposits(receipts, pq.config.DepositContractAddress)
-			for _, err := range errs {
-				pq.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
-			}
-			if len(errs) != 0 {
-				pq.l1Origins = pq.l1Origins[originIdx:]
-				return nil, fmt.Errorf("failed to derive some deposits: %v", errs)
-			}
-		}
-
-		var txns []eth.Data
-		l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
-		if err != nil {
-			pq.l1Origins = pq.l1Origins[originIdx:]
-			return nil, fmt.Errorf("failed to create l1InfoTx: %w", err)
-		}
-		txns = append(txns, l1InfoTx)
-		if seqNumber == 0 {
-			txns = append(txns, deposits...)
-		}
-		txns = append(txns, batch.Batch.Transactions...)
-		attrs := &eth.PayloadAttributes{
-			Timestamp:             hexutil.Uint64(batch.Batch.Timestamp),
-			PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
-			SuggestedFeeRecipient: pq.config.FeeRecipientAddress,
-			Transactions:          txns,
-			// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
-			// (that would make the block derivation non-deterministic)
-			NoTxPool: true,
-		}
-		attributes = append(attributes, attrs) // TODO: direct assignment here
-
-		seqNumber += 1
+		l1Origin = pq.l1Origins[1]
 	}
-	pq.l1Origins = pq.l1Origins[originIdx:]
-	return attributes, nil
 
+	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	l1Info, _, receipts, err := pq.dl.Fetch(fetchCtx, l1Origin.Hash)
+	if err != nil {
+		pq.log.Error("failed to fetch L1 block info", "l1Origin", l1Origin, "err", err)
+		return nil, err
+	}
+
+	var deposits []hexutil.Bytes
+	// Fill in deposits if we have advanced an epoch
+	if pq.l1Origins[0].Number != uint64(batch.Batch.Epoch) {
+		fetchCtx, cancel = context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+
+		var errs []error
+		deposits, errs = DeriveDeposits(receipts, pq.config.DepositContractAddress)
+		for _, err := range errs {
+			pq.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
+		}
+		if len(errs) != 0 {
+			// TODO: Multierror here
+			return nil, fmt.Errorf("failed to derive some deposits: %v", errs)
+		}
+	}
+
+	var txns []eth.Data
+	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create l1InfoTx: %w", err)
+	}
+	txns = append(txns, l1InfoTx)
+	if seqNumber == 0 {
+		txns = append(txns, deposits...)
+	}
+	txns = append(txns, batch.Batch.Transactions...)
+	attrs := &eth.PayloadAttributes{
+		Timestamp:             hexutil.Uint64(batch.Batch.Timestamp),
+		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
+		SuggestedFeeRecipient: pq.config.FeeRecipientAddress,
+		Transactions:          txns,
+		// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
+		// (that would make the block derivation non-deterministic)
+		NoTxPool: true,
+	}
+
+	return attrs, nil
 }
